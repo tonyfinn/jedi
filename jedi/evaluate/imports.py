@@ -139,7 +139,9 @@ def get_init_path(directory_path):
     The __init__ file can be searched in a directory. If found return it, else
     None.
     """
-    for suffix, _, _ in imp.get_suffixes():
+    suffixes = [suffix_data[0] for suffix_data in imp.get_suffixes()]
+    suffixes.insert(0, '.pyi')
+    for suffix in suffixes:
         path = os.path.join(directory_path, '__init__' + suffix)
         if os.path.exists(path):
             return path
@@ -338,7 +340,8 @@ class Importer(object):
                         module_file, module_path, is_pkg = \
                             find_module(import_parts[-1], path, fullname=module_name)
                         break
-                    except ImportError:
+                    except ImportError as e:
+                        print(e)
                         module_path = None
                 if module_path is None:
                     _add_error(self.module_context, import_path[-1])
@@ -372,12 +375,14 @@ class Importer(object):
             code = module_file.read()
             module_file.close()
 
+
+        print('Loading: {}'.format(module_path))
         if isinstance(module_path, ImplicitNSInfo):
             from jedi.evaluate.context.namespace import ImplicitNamespaceContext
             fullname, paths = module_path.name, module_path.paths
             module = ImplicitNamespaceContext(self._evaluator, fullname=fullname)
             module.paths = paths
-        elif module_file is None and not module_path.endswith(('.py', '.zip', '.egg')):
+        elif module_file is None and not module_path.endswith(('.py', '.zip', '.egg', '.pyi')):
             module = compiled.load_module(self._evaluator, module_path)
         else:
             module = _load_module(self._evaluator, module_path, code, sys_path, parent_module)
@@ -441,7 +446,7 @@ class Importer(object):
                 if context.api_type != 'module':  # not a module
                     continue
                 # namespace packages
-                if isinstance(context, ModuleContext) and context.py__file__().endswith('__init__.py'):
+                if isinstance(context, ModuleContext) and context.py__file__().endswith(('__init__.py', '__init__.pyi')):
                     paths = context.py__path__()
                     names += self._get_module_names(paths, in_module=context)
 
@@ -481,7 +486,7 @@ def _load_module(evaluator, path=None, code=None, sys_path=None, parent_module=N
         sys_path = evaluator.project.sys_path
 
     dotted_path = path and compiled.dotted_from_fs_path(path, sys_path)
-    if path is not None and path.endswith(('.py', '.zip', '.egg')) \
+    if path is not None and path.endswith(('.py', '.pyi', '.zip', '.egg')) \
             and dotted_path not in settings.auto_import_modules:
 
         module_node = evaluator.grammar.parse(
@@ -516,7 +521,7 @@ def get_modules_containing_name(evaluator, modules, name):
                 d = os.path.dirname(os.path.abspath(p))
                 for file_name in os.listdir(d):
                     path = os.path.join(d, file_name)
-                    if file_name.endswith('.py'):
+                    if file_name.endswith(('.py', '.pyi')):
                         yield path
 
     def check_python_file(path):

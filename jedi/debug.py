@@ -55,8 +55,8 @@ WARNING = object()
 SPEED = object()
 
 enable_speed = False
-enable_warning = False
-enable_notice = False
+enable_warning = True
+enable_notice = True
 
 # callback, interface: level, str
 debug_function = None
@@ -125,4 +125,4 @@ def print_to_stdout(color, str_out):
     print(col + str_out + Fore.RESET)
 
 
-# debug_function = print_to_stdout
+debug_function = print_to_stdout

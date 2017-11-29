@@ -91,7 +91,7 @@ class ModuleContext(use_metaclass(CachedMetaClass, TreeContext)):
             return ''  # no path -> empty name
         else:
             sep = (re.escape(os.path.sep),) * 2
-            r = re.search(r'([^%s]*?)(%s__init__)?(\.py|\.so)?$' % sep, self._path)
+            r = re.search(r'([^%s]*?)(%s__init__)?(\.py|\.pyi|\.so)?$' % sep, self._path)
             # Remove PEP 3149 names
             return re.sub('\.[a-z]+-\d{2}[mud]{0,3}$', '', r.group(1))
 
@@ -105,7 +105,9 @@ class ModuleContext(use_metaclass(CachedMetaClass, TreeContext)):
         :return: The path to the directory of a package. None in case it's not
                  a package.
         """
-        for suffix, _, _ in imp.get_suffixes():
+        suffixes = [suffix[0] for suffix in imp.get_suffixes()]
+        suffixes.insert(0, '.pyi')
+        for suffix in suffixes:
             ending = '__init__' + suffix
             py__file__ = self.py__file__()
             if py__file__ is not None and py__file__.endswith(ending):
@@ -138,7 +140,7 @@ class ModuleContext(use_metaclass(CachedMetaClass, TreeContext)):
     def _py__path__(self):
         search_path = self.evaluator.project.sys_path
         init_path = self.py__file__()
-        if os.path.basename(init_path) == '__init__.py':
+        if os.path.basename(init_path) in ['__init__.py', '__init__.pyi']:
             with open(init_path, 'rb') as f:
                 content = python_bytes_to_unicode(f.read(), errors='replace')
                 # these are strings that need to be used for namespace packages,
@@ -187,7 +189,11 @@ class ModuleContext(use_metaclass(CachedMetaClass, TreeContext)):
         """
         path = self._path
         names = {}
-        if path is not None and path.endswith(os.path.sep + '__init__.py'):
+        module_paths = (
+            os.path.sep + '__init__.py',
+            os.path.sep + '__init__.pyi'
+        )
+        if path is not None and path.endswith(module_paths):
             mods = pkgutil.iter_modules([os.path.dirname(path)])
             for module_loader, name, is_pkg in mods:
                 # It's obviously a relative import to the current module.

@@ -35,12 +35,36 @@ class DummyFile(object):
         del self.loader
 
 
+PathFinderBase = importlib.machinery.PathFinder if is_py33 else object
+
+
+class ExtendedPathFinder(PathFinderBase):
+    """
+    PathFinder for finding a module in the path that will also find .pyi files
+    for PEP-0484 stub files.
+    """
+    @classmethod
+    def _path_hooks(cls, path):
+        loaders = [
+            (importlib.machinery.SourceFileLoader, ('.pyi',))
+        ]
+        custom_finder = importlib.machinery.FileFinder.path_hook(*loaders)
+        try:
+            spec = custom_finder(path)
+            if spec:
+                print(spec)
+            return spec
+        except ImportError:
+            print('Failed to find pyi at {}, falling back to default impl'.format(path))
+            return PathFinderBase._path_hooks(path)
+
+
 def find_module_py34(string, path=None, fullname=None):
     implicit_namespace_pkg = False
     spec = None
     loader = None
 
-    spec = importlib.machinery.PathFinder.find_spec(string, path)
+    spec = ExtendedPathFinder.find_spec(string, path)
     if hasattr(spec, 'origin'):
         origin = spec.origin
         implicit_namespace_pkg = origin == 'namespace'
@@ -57,7 +81,7 @@ def find_module_py34(string, path=None, fullname=None):
     return find_module_py33(string, path, loader)
 
 def find_module_py33(string, path=None, loader=None, fullname=None):
-    loader = loader or importlib.machinery.PathFinder.find_module(string, path)
+    loader = loader or ExtendedPathFinder.find_module(string, path)
 
     if loader is None and path is None:  # Fallback to find builtins
         try:
@@ -74,7 +98,7 @@ def find_module_py33(string, path=None, loader=None, fullname=None):
             raise ImportError("Originally  " + repr(e))
 
     if loader is None:
-        raise ImportError("Couldn't find a loader for {0}".format(string))
+        raise ImportError("Couldn't find a loader for '{0}' in {1}".format(string, path))
 
     try:
         is_package = loader.is_package(string)
